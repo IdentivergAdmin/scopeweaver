@@ -32,7 +32,7 @@ async function call(client, name, args = {}) {
 test("MCP stdio → real authenticated backend → persisted task, controls, coverage and findings", async (t) => {
   const client = await connect(t);
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 8);
+  assert.equal(tools.length, 10);
   assert.equal(tools.find((tool) => tool.name === "scopeweaver_create_task").annotations.readOnlyHint, false);
   const health = await call(client, "health");
   assert.ok(health);
@@ -55,6 +55,11 @@ test("MCP stdio → real authenticated backend → persisted task, controls, cov
   const finding = await call(client, "get_finding", { finding_id: findingID });
   assert.equal(finding.id, findingID);
   assert.match(finding.evidence, /SIMULATED/);
+  const lineage = await call(client, "get_finding_lineage", { finding_id: findingID });
+  assert.ok(Array.isArray(lineage.nodes));
+  assert.ok(Array.isArray(lineage.edges));
+  const retests = await call(client, "list_finding_retests", { finding_id: findingID });
+  assert.ok(Array.isArray(retests.retests));
   const empty = await call(client, "list_findings", { task_id: created.id });
   assert.equal(empty.total, 0);
   const page = await call(client, "list_tasks", { page: 100, limit: 1 });
@@ -63,7 +68,7 @@ test("MCP stdio → real authenticated backend → persisted task, controls, cov
 
 test("MCP surfaces authentication, missing tasks and invalid input as errors; read-only mode hides writes", async (t) => {
   const readonly = await connect(t, { SCOPEWEAVER_ALLOW_WRITES: "false" });
-  assert.equal((await readonly.listTools()).tools.length, 6);
+  assert.equal((await readonly.listTools()).tools.length, 8);
   const disabled = await readonly.callTool({ name: "scopeweaver_create_task", arguments: { description: "x", goal: "y" } });
   assert.equal(disabled.isError, true);
   assert.match(disabled.content[0].text, /not found/);
