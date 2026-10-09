@@ -17,7 +17,7 @@ export SCOPEWEAVER_PASSWORD='your-existing-admin-password'
 
 The password is used to log in as the backend's existing `ARTEX` admin user. The returned JWT stays in memory. Alternatively set `SCOPEWEAVER_TOKEN` to an existing login JWT; a supplied token takes precedence. Expired/invalid tokens produce an error and are not silently replaced. Keep credentials in your environment or secret manager; do not commit them to client configuration.
 
-Reads are enabled by default. To enable task creation and pause/resume, explicitly set `SCOPEWEAVER_ALLOW_WRITES=true` before starting the adapter. Task creation schedules work immediately when the backend has an LLM configured. Retain the project's [locally isolated usage restrictions](../../README.md#license-and-disclaimer) and confirm the intended scope before creating a task.
+Reads are enabled by default, including finding lineage and retest history. Access to these records does not imply that technical findings are validated or independently reviewed. To enable task creation and pause/resume, explicitly set `SCOPEWEAVER_ALLOW_WRITES=true` before starting the adapter. Task creation schedules work immediately when the backend has an LLM configured. Retain the project's [locally isolated usage restrictions](../../README.md#license-and-disclaimer) and confirm the intended scope before creating a task.
 
 ### Claude Code
 
@@ -64,6 +64,8 @@ The extension registers native Pi tools and uses the same environment variables.
 | `scopeweaver_get_coverage` | Task asset coverage |
 | `scopeweaver_list_findings` | Paginated findings filtered by task, severity, status or text |
 | `scopeweaver_get_finding` | Finding detail, evidence and report |
+| `scopeweaver_get_finding_lineage` | Read the persisted exploration-node DAG for one finding; untrusted technical lineage, not control assurance |
+| `scopeweaver_list_finding_retests` | Read historical retest attempts; an AI verdict does not close a governed finding |
 | `scopeweaver_create_task` | Create/schedule a task; requires writes enabled |
 | `scopeweaver_control_task` | Pause/resume a task; requires writes enabled |
 

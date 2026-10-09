@@ -27,17 +27,44 @@ test("configuration rejects unsafe origins and invalid options without printing 
 test("writes are absent by default and unknown/path-injection arguments are rejected before HTTP", async () => {
   const client = new ScopeWeaverClient(configFromEnv({}));
   const reads = createTools(client);
-  assert.equal(reads.length, 6);
+  assert.equal(reads.length, 8);
   assert.ok(reads.every((tool) => tool.annotations.readOnlyHint));
+  for (const name of ["scopeweaver_get_finding_lineage", "scopeweaver_list_finding_retests"]) {
+    const extra = reads.find((tool) => tool.name === name);
+    assert.ok(extra, `Missing read-only tool ${name}`);
+    assert.equal(extra.annotations.readOnlyHint, true);
+    await assert.rejects(executeTool(extra, { finding_id: "../settings" }));
+    await assert.rejects(executeTool(extra, { finding_id: "1", command: "ignored" }));
+  }
   const tool = reads.find((tool) => tool.name === "scopeweaver_get_task");
   await assert.rejects(executeTool(tool, { task_id: "../../settings" }));
   await assert.rejects(executeTool(tool, { task_id: "1", command: "ignored" }));
   const writes = createTools(new ScopeWeaverClient(configFromEnv({ SCOPEWEAVER_ALLOW_WRITES: "true" })));
-  assert.equal(writes.length, 8);
+  assert.equal(writes.length, 10);
   const create = writes.find((tool) => tool.name === "scopeweaver_create_task");
   assert.equal(create.schema.parse({ description: "lab", goal: "test" }).timeout_seconds, 600);
   await assert.rejects(executeTool(create, { description: " ", goal: "test" }));
   await assert.rejects(executeTool(create, { description: "lab", goal: "test", timeout_seconds: 0 }));
+});
+
+test("read-only finding lineage and retests hit the intended backend routes", async (t) => {
+  const requested = [];
+  const url = await fixture(t, (req, res) => {
+    requested.push(req.url);
+    assert.equal(req.headers.authorization, "Bearer fixture-token");
+    res.setHeader("Content-Type", "application/json");
+    res.end(req.url.endsWith("/lineage") ? JSON.stringify({ nodes: [], edges: [] }) : JSON.stringify({ retests: [] }));
+  });
+  const client = new ScopeWeaverClient(configFromEnv({ SCOPEWEAVER_URL: url, SCOPEWEAVER_TOKEN: "fixture-token" }));
+  for (const [name, route, key] of [
+    ["scopeweaver_get_finding_lineage", "/api/exploration/findings/42/lineage", "nodes"],
+    ["scopeweaver_list_finding_retests", "/api/exploration/findings/42/retests", "retests"],
+  ]) {
+    const tool = createTools(client).find((x) => x.name === name);
+    const result = await executeTool(tool, { finding_id: "42" });
+    assert.deepEqual(result.structuredContent.data[key], []);
+    assert.equal(requested.at(-1), route);
+  }
 });
 
 test("concurrent calls share login, send authorization and Korean locale, and paginate tasks", async (t) => {
@@ -107,7 +134,7 @@ test("timeouts, cancellation, malformed JSON and excessive responses fail explic
 test("Pi extension shares schemas and reports backend failures by throwing", async () => {
   const tools = [];
   extension({ registerTool: (tool) => tools.push(tool) });
-  assert.equal(tools.length, process.env.SCOPEWEAVER_ALLOW_WRITES === "true" ? 8 : 6);
+  assert.equal(tools.length, process.env.SCOPEWEAVER_ALLOW_WRITES === "true" ? 10 : 8);
   const task = tools.find((tool) => tool.name === "scopeweaver_get_task");
   assert.equal(task.parameters.type, "object");
   await assert.rejects(task.execute("id", { task_id: "../settings" }), /Invalid/);
